@@ -1,0 +1,9 @@
+{
+  "name": "ConsentMD",
+  "description": "A secure, WhatsApp-style communication platform for Home Healthcare, featuring group chats, video calling with AI transcription, and patient management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
