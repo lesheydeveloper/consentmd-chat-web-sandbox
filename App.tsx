@@ -88,6 +88,18 @@ interface AppContextType {
   isContactPickerOpen: boolean;
   toggleContactPicker: () => void;
 
+  // Group Chat Management
+  isCreateGroupOpen: boolean;
+  toggleCreateGroup: () => void;
+  isAddMembersOpen: boolean;
+  addMembersChatId: string | null;
+  openAddMembers: (chatId: string) => void;
+  closeAddMembers: () => void;
+  createGroupChat: (name: string, type: GroupType, participantIds: string[]) => string;
+  addGroupMembers: (chatId: string, userIds: string[]) => void;
+  removeGroupMember: (chatId: string, userId: string) => void;
+  isGroupAdmin: (chat: Chat) => boolean;
+
   // Patient & Consultation Management
   promptForPatient: (chatId?: string) => void;
   promptForConsultationType: (chatId?: string) => void;
@@ -690,6 +702,345 @@ const ContactPicker: React.FC = () => {
   );
 };
 
+const CreateGroupModal: React.FC = () => {
+  const { isCreateGroupOpen, toggleCreateGroup, createGroupChat } = useAppContext();
+  const navigate = useNavigate();
+  const [groupName, setGroupName] = useState('');
+  const [selectedType, setSelectedType] = useState<GroupType>(GroupType.CARE_TEAM);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [memberSearch, setMemberSearch] = useState('');
+
+  if (!isCreateGroupOpen) return null;
+
+  // Filter available members (exclude current user and already selected)
+  const availableMembers = USERS.filter(user => user.id !== CURRENT_USER.id);
+  const filteredMembers = availableMembers.filter(user =>
+    user.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+    user.phoneNumber?.includes(memberSearch)
+  );
+
+  const GROUP_TYPES = [
+    { value: GroupType.CARE_TEAM, label: 'Care Team', desc: 'Clinical team coordinating patient care' },
+    { value: GroupType.FAMILY_UPDATE, label: 'Family Update', desc: 'Keep patient family informed' },
+    { value: GroupType.INTERNAL_STAFF, label: 'Internal Staff', desc: 'Internal staff coordination' },
+    { value: GroupType.BROADCAST, label: 'Broadcast', desc: 'One-way announcements to staff' },
+  ];
+
+  const toggleMember = (userId: string) => {
+    setSelectedUserIds(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleCreateGroup = () => {
+    if (!groupName.trim() || selectedUserIds.length < 2) return;
+
+    const newChatId = createGroupChat(groupName, selectedType, selectedUserIds);
+    setGroupName('');
+    setSelectedUserIds([]);
+    setMemberSearch('');
+    setSelectedType(GroupType.CARE_TEAM);
+    toggleCreateGroup();
+    navigate(`/chats/${newChatId}`);
+  };
+
+  const isValid = groupName.trim().length > 0 && selectedUserIds.length >= 2;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[260] flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-teal to-teal/80 text-white p-6 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-2xl font-bold">Create Group Chat</h2>
+            <p className="text-sm text-white/80">Start a conversation with multiple team members</p>
+          </div>
+          <button onClick={toggleCreateGroup} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          {/* Group Name Input */}
+          <div className="mb-6">
+            <label className="block text-sm font-bold text-gray-700 mb-2">
+              Group Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              placeholder="e.g., Alice Williams - Care Team"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-teal focus:ring-2 focus:ring-teal/20 transition-all"
+            />
+          </div>
+
+          {/* Group Type Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-bold text-gray-700 mb-3">
+              Group Type <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {GROUP_TYPES.map(type => (
+                <button
+                  key={type.value}
+                  onClick={() => setSelectedType(type.value)}
+                  className={`text-left p-4 rounded-xl border-2 transition-all ${
+                    selectedType === type.value
+                      ? 'border-teal bg-teal/10 shadow-md'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <div className="font-bold text-gray-900 text-sm">{type.label}</div>
+                  <div className="text-xs text-gray-600 mt-1">{type.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Member Selection */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-bold text-gray-700">
+                Select Members <span className="text-red-500">*</span>
+              </label>
+              <span className="text-xs text-gray-600">
+                {selectedUserIds.length} selected
+              </span>
+            </div>
+
+            {/* Search Input */}
+            <div className="mb-3 relative">
+              <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
+              <input
+                type="text"
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                placeholder="Search members..."
+                className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-teal focus:ring-2 focus:ring-teal/20 transition-all text-sm"
+              />
+            </div>
+
+            {/* Member List */}
+            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl bg-gray-50">
+              {filteredMembers.length === 0 ? (
+                <div className="p-6 text-center text-gray-500">
+                  <Users size={32} className="mx-auto mb-2 opacity-30" />
+                  <p>No members found</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredMembers.map(user => (
+                    <button
+                      key={user.id}
+                      onClick={() => toggleMember(user.id)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-gray-100 transition-colors text-left"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(user.id)}
+                        onChange={() => toggleMember(user.id)}
+                        className="w-5 h-5 rounded border-gray-300 text-teal cursor-pointer"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-900 text-sm">{user.name}</div>
+                        <div className="text-xs text-gray-600">{user.title || user.role}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Validation Message */}
+            {selectedUserIds.length === 1 && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-yellow-700 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                <AlertCircle size={14} />
+                <span>Select at least 2 members to create a group</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t p-6 flex gap-3 justify-end bg-gray-50 shrink-0">
+          <button
+            onClick={toggleCreateGroup}
+            className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-100 transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCreateGroup}
+            disabled={!isValid}
+            className={`px-6 py-2.5 rounded-xl font-bold transition-all shadow-md flex items-center gap-2 ${
+              isValid
+                ? 'bg-teal text-white hover:bg-teal/90'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <Users size={18} />
+            Create Group
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AddGroupMembersModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  chatId: string | null;
+}> = ({ isOpen, onClose, chatId }) => {
+  const { chats, addGroupMembers } = useAppContext();
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [memberSearch, setMemberSearch] = useState('');
+
+  if (!isOpen || !chatId) return null;
+
+  const chat = chats.find(c => c.id === chatId);
+  if (!chat) return null;
+
+  // Get IDs of existing participants
+  const existingParticipantIds = new Set(chat.participants.map(p => p.id));
+
+  // Filter available members (those not already in the chat)
+  const availableMembers = USERS.filter(user => !existingParticipantIds.has(user.id));
+  const filteredMembers = availableMembers.filter(user =>
+    user.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+    user.phoneNumber?.includes(memberSearch)
+  );
+
+  const toggleMember = (userId: string) => {
+    setSelectedUserIds(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleAddMembers = () => {
+    if (selectedUserIds.length === 0) return;
+    addGroupMembers(chatId, selectedUserIds);
+    setSelectedUserIds([]);
+    setMemberSearch('');
+    onClose();
+  };
+
+  const handleClose = () => {
+    setSelectedUserIds([]);
+    setMemberSearch('');
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[260] flex items-center justify-center p-4 animate-[fadeIn_0.2s_ease-out]">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-teal to-teal/80 text-white p-6 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="text-2xl font-bold">Add Members</h2>
+            <p className="text-sm text-white/80">Invite more people to this group</p>
+          </div>
+          <button onClick={handleClose} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          {availableMembers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Users size={48} className="text-gray-300 mb-3" />
+              <h3 className="font-bold text-gray-700 mb-1">No Available Members</h3>
+              <p className="text-sm text-gray-500">All contacts are already in this group</p>
+            </div>
+          ) : (
+            <>
+              {/* Search Input */}
+              <div className="mb-4 relative">
+                <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={memberSearch}
+                  onChange={(e: any) => setMemberSearch(e.target.value)}
+                  placeholder="Search members..."
+                  className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-teal focus:ring-2 focus:ring-teal/20 transition-all text-sm"
+                />
+              </div>
+
+              {/* Member List */}
+              <div className="space-y-0 border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                {filteredMembers.length === 0 ? (
+                  <div className="p-6 text-center text-gray-500">
+                    <Search size={32} className="mx-auto mb-2 opacity-30" />
+                    <p>No members match your search</p>
+                  </div>
+                ) : (
+                  filteredMembers.map(user => (
+                    <button
+                      key={user.id}
+                      onClick={() => toggleMember(user.id)}
+                      className="w-full flex items-center gap-3 p-4 hover:bg-white border-b last:border-b-0 transition-colors text-left"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(user.id)}
+                        onChange={() => toggleMember(user.id)}
+                        className="w-5 h-5 rounded border-gray-300 text-teal cursor-pointer"
+                        onClick={(e: any) => e.stopPropagation()}
+                      />
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <div className="flex-1">
+                        <div className="font-bold text-gray-900 text-sm">{user.name}</div>
+                        <div className="text-xs text-gray-600">{user.title || user.role}</div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t p-6 flex gap-3 justify-end bg-gray-50 shrink-0">
+          <button
+            onClick={handleClose}
+            className="px-6 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl font-bold hover:bg-gray-100 transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAddMembers}
+            disabled={selectedUserIds.length === 0 || availableMembers.length === 0}
+            className={`px-6 py-2.5 rounded-xl font-bold transition-all shadow-md flex items-center gap-2 ${
+              selectedUserIds.length > 0 && availableMembers.length > 0
+                ? 'bg-teal text-white hover:bg-teal/90'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <UserPlus size={18} />
+            {selectedUserIds.length > 0
+              ? `Add ${selectedUserIds.length} Member${selectedUserIds.length !== 1 ? 's' : ''}`
+              : 'Add Members'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SettingsModal: React.FC = () => {
   const { isSettingsOpen, toggleSettings, userPreferences, updatePreferences } = useAppContext();
   const [selectedTemplate, setSelectedTemplate] = useState(userPreferences.defaultTemplate);
@@ -1276,15 +1627,32 @@ const ConsultationTypePicker: React.FC<{
 };
 
 const ChatInfoPanel: React.FC = () => {
-    const { activeChat, currentUser, isChatInfoOpen, toggleChatInfo, setPreviewMedia } = useAppContext();
+    const { activeChat, currentUser, isChatInfoOpen, toggleChatInfo, setPreviewMedia, isGroupAdmin, removeGroupMember, openAddMembers } = useAppContext();
+    const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+
     if (!activeChat || !isChatInfoOpen) return null;
 
     const mediaMessages = activeChat.messages.filter(m => m.type === 'image' || m.type === 'file');
-    
+
     const isDirect = activeChat.type === GroupType.DIRECT || activeChat.type === GroupType.SMS;
     const directContact = isDirect ? activeChat.participants.find(p => p.id !== currentUser.id) : null;
     const displayAvatar = isDirect && directContact ? directContact.avatar : activeChat.avatar;
     const displayName = isDirect && directContact ? directContact.name : activeChat.name;
+    const canManageGroup = !isDirect && isGroupAdmin(activeChat);
+
+    // Reset confirmation state when chat changes
+    useEffect(() => {
+        setConfirmRemoveId(null);
+    }, [activeChat?.id]);
+
+    const handleRemoveClick = (userId: string) => {
+        if (confirmRemoveId === userId) {
+            removeGroupMember(activeChat.id, userId);
+            setConfirmRemoveId(null);
+        } else {
+            setConfirmRemoveId(userId);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[100] md:relative md:inset-auto md:w-[350px] bg-[#f0f2f5] border-l border-gray-200 h-full flex flex-col shrink-0 animate-[slideLeft_0.2s_ease-out] md:z-40 overflow-hidden">
@@ -1363,22 +1731,43 @@ const ChatInfoPanel: React.FC = () => {
                 {/* Participants Block */}
                 {!isDirect && (
                     <div className="bg-white shadow-sm p-5 pb-8 mb-4">
-                        <h4 className="text-sm font-medium text-gray-500 mb-5">{activeChat.participants.length} participants</h4>
-                        <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-5">
+                            <h4 className="text-sm font-medium text-gray-500">{activeChat.participants.length} participants</h4>
+                            {canManageGroup && (
+                                <button onClick={() => openAddMembers(activeChat.id)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-teal/10 text-teal rounded-full text-xs font-bold hover:bg-teal/20 transition-colors">
+                                    <UserPlus size={14} /> Add Member
+                                </button>
+                            )}
+                        </div>
+                        <div className="space-y-4" onClick={() => setConfirmRemoveId(null)}>
                             {activeChat.participants.map(p => (
-                                <div key={p.id} className="flex items-center gap-4 cursor-pointer hover:bg-gray-50 p-2 -mx-2 rounded-lg transition-colors">
+                                <div key={p.id} className="group flex items-center gap-4 cursor-pointer hover:bg-gray-50 p-2 -mx-2 rounded-lg transition-colors">
                                     <img src={p.avatar} className="w-[46px] h-[46px] rounded-full object-cover" />
-                                    <div className="flex-1 min-w-0 flex justify-between items-center">
+                                    <div className="flex-1 min-w-0 flex justify-between items-center gap-2">
                                         <div className="flex flex-col">
                                             <span className="text-[17px] text-gray-900 truncate">
                                                 {p.id === currentUser.id ? 'You' : p.name}
                                             </span>
                                             <span className="text-sm text-gray-500">{p.role}</span>
                                         </div>
-                                        {p.role === UserRole.ADMIN && (
-                                            <span className="text-[11px] text-teal border border-teal/40 px-2 py-0.5 rounded font-medium">Group Admin</span>
+                                        {(activeChat.adminId === p.id || p.role === UserRole.ADMIN) && (
+                                            <span className="text-[11px] text-teal border border-teal/40 px-2 py-0.5 rounded font-medium whitespace-nowrap">
+                                                {activeChat.adminId === p.id ? 'Group Admin' : 'Admin'}
+                                            </span>
                                         )}
                                     </div>
+                                    {canManageGroup && p.id !== currentUser.id && activeChat.adminId !== p.id && (
+                                        <button
+                                            onClick={(e: any) => { e.stopPropagation(); handleRemoveClick(p.id); }}
+                                            className={confirmRemoveId === p.id
+                                                ? 'flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-red-500 text-white'
+                                                : 'opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all'}
+                                        >
+                                            <X size={confirmRemoveId === p.id ? 12 : 14} />
+                                            {confirmRemoveId === p.id && <span>Remove?</span>}
+                                        </button>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -2256,7 +2645,7 @@ const ChatWindow: React.FC = () => {
 
 // --- NEW CHAT LIST COMPONENT ---
 const ChatList: React.FC = () => {
-    const { chats, activeChat, setActiveChat, searchTerm, setSearchTerm, togglePinChat, toggleNotesPanel, toggleContactPicker, isNotesPanelOpen } = useAppContext();
+    const { chats, activeChat, setActiveChat, searchTerm, setSearchTerm, togglePinChat, toggleNotesPanel, toggleContactPicker, toggleCreateGroup, isNotesPanelOpen } = useAppContext();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -2305,8 +2694,9 @@ const ChatList: React.FC = () => {
         <div className="flex flex-col h-full bg-white w-full animate-[fadeIn_0.2s_ease-out] shadow-sm">
             <div className="h-16 bg-white px-4 flex items-center justify-between border-b border-gray-200 shrink-0">
                 <h1 className="text-xl font-bold text-navy">Chats</h1>
-                <div className="flex gap-4 text-teal">
-                    <button onClick={toggleContactPicker} className="hover:bg-gray-100 p-2 rounded-full transition-colors" title="Start new conversation"><MessageSquare size={20} /></button>
+                <div className="flex gap-2 text-teal">
+                    <button onClick={toggleContactPicker} className="hover:bg-gray-100 p-2 rounded-full transition-colors" title="New direct chat"><MessageSquare size={20} /></button>
+                    <button onClick={toggleCreateGroup} className="hover:bg-gray-100 p-2 rounded-full transition-colors" title="Create group"><Users size={20} /></button>
                     <button className="hover:bg-gray-100 p-2 rounded-full transition-colors"><MoreVertical size={20} /></button>
                 </div>
             </div>
@@ -3497,6 +3887,21 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isContactPickerOpen, setIsContactPickerOpen] = useState(false);
   const toggleContactPicker = () => setIsContactPickerOpen(prev => !prev);
 
+  // Group Chat Management State
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const toggleCreateGroup = () => setIsCreateGroupOpen(prev => !prev);
+
+  const [isAddMembersOpen, setIsAddMembersOpen] = useState(false);
+  const [addMembersChatId, setAddMembersChatId] = useState<string | null>(null);
+  const openAddMembers = (chatId: string) => {
+    setAddMembersChatId(chatId);
+    setIsAddMembersOpen(true);
+  };
+  const closeAddMembers = () => {
+    setIsAddMembersOpen(false);
+    setAddMembersChatId(null);
+  };
+
   // Patient & Consultation State
   const [isPatientSelectorOpen, setIsPatientSelectorOpen] = useState(false);
   const [isPatientCreationOpen, setIsPatientCreationOpen] = useState(false);
@@ -3707,6 +4112,47 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         }
       };
     });
+  };
+
+  // Group Chat Management Functions
+  const isGroupAdmin = (chat: Chat): boolean =>
+    chat.adminId === currentUser.id || currentUser.role === UserRole.ADMIN;
+
+  const createGroupChat = (name: string, type: GroupType, participantIds: string[]): string => {
+    const newChatId = `cg_${Date.now()}`;
+    const newChat: Chat = {
+      id: newChatId,
+      name: name.trim(),
+      type,
+      participants: [currentUser, ...USERS.filter(u => participantIds.includes(u.id))],
+      messages: [],
+      adminId: currentUser.id,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`
+    };
+    setChats(prev => [newChat, ...prev]);
+    return newChatId;
+  };
+
+  const addGroupMembers = (chatId: string, userIds: string[]): void => {
+    const newUsers = USERS.filter(u => userIds.includes(u.id));
+    const updater = (chat: Chat) => {
+      const existingIds = new Set(chat.participants.map(p => p.id));
+      return {
+        ...chat,
+        participants: [...chat.participants, ...newUsers.filter(u => !existingIds.has(u.id))]
+      };
+    };
+    setChats(prev => prev.map(c => c.id === chatId ? updater(c) : c));
+    setActiveChat(prev => prev?.id === chatId ? updater(prev) : prev);
+  };
+
+  const removeGroupMember = (chatId: string, userId: string): void => {
+    const updater = (chat: Chat) => {
+      if (chat.adminId === userId) return chat; // cannot remove creator
+      return { ...chat, participants: chat.participants.filter(p => p.id !== userId) };
+    };
+    setChats(prev => prev.map(c => c.id === chatId ? updater(c) : c));
+    setActiveChat(prev => prev?.id === chatId ? updater(prev) : prev);
   };
 
   const generateFullSOAP = async (chatId: string) => {
@@ -3922,6 +4368,16 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     templatePickerContext,
     isContactPickerOpen,
     toggleContactPicker,
+    isCreateGroupOpen,
+    toggleCreateGroup,
+    isAddMembersOpen,
+    addMembersChatId,
+    openAddMembers,
+    closeAddMembers,
+    createGroupChat,
+    addGroupMembers,
+    removeGroupMember,
+    isGroupAdmin,
     promptForPatient,
     promptForConsultationType,
     isPatientSelectorOpen,
@@ -3947,7 +4403,8 @@ const Layout: React.FC = () => {
       isPatientSelectorOpen, setIsPatientSelectorOpen,
       isPatientCreationOpen, setIsPatientCreationOpen,
       isConsultationPickerOpen, setIsConsultationPickerOpen,
-      handlePatientSelected, handleCreateNewPatient, handleConsultationTypeSelected
+      handlePatientSelected, handleCreateNewPatient, handleConsultationTypeSelected,
+      isAddMembersOpen, addMembersChatId, closeAddMembers
     } = useAppContext() as any;
 
     // Determine what to show on mobile
@@ -4020,6 +4477,12 @@ const Layout: React.FC = () => {
             {/* Settings & Template Selection Modals */}
             <SettingsModal />
             <ContactPicker />
+            <CreateGroupModal />
+            <AddGroupMembersModal
+              isOpen={isAddMembersOpen}
+              onClose={closeAddMembers}
+              chatId={addMembersChatId}
+            />
             <TemplatePickerModal
               isOpen={isTemplatePickerOpen}
               onClose={closeTemplatePicker}

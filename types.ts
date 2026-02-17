@@ -61,6 +61,7 @@ export interface Chat {
   pinned?: boolean;
   phoneNumber?: string;
   patientId?: string;
+  adminId?: string;
 }
 
 export interface CallLog {

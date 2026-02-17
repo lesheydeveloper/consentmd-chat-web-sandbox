@@ -7,7 +7,7 @@ ConsentMD is a HIPAA-compliant telemedicine and clinical communication platform 
 **Technology Stack:**
 - **Backend Framework:** NestJS 10.x (Progressive Node.js framework)
 - **Language:** TypeScript
-- **Database:** Neon (PostgreSQL serverless) with TypeORM
+- **Database:** MongoDB (NoSQL) with Mongoose - optimized for chat, messages, and real-time data
 - **Authentication:** JWT tokens from Laravel backend (Identity Provider)
 - **API Documentation:** Swagger/OpenAPI
 - **Real-time Communication:** WebSockets (Socket.IO)
@@ -44,7 +44,7 @@ ConsentMD is a HIPAA-compliant telemedicine and clinical communication platform 
 15. [Development Scripts](#15-development-scripts-packagejson)
 16. [Testing Examples](#16-testing-examples)
 17. [Deployment Checklist](#17-deployment-checklist)
-18. [Neon Database Configuration](#18-neon-database-configuration)
+18. [MongoDB Setup & Configuration](#18-mongodb-setup--configuration)
 19. [Google Cloud Storage Setup](#19-google-cloud-storage-gcs-setup)
 20. [Real-Time Notification Services](#20-real-time-notification-services)
 21. [Google Cloud Deployment](#21-google-cloud-deployment)
@@ -80,7 +80,7 @@ nest new consentmd-backend
 cd consentmd-backend
 
 # Install required dependencies
-npm install @nestjs/typeorm typeorm pg
+npm install @nestjs/mongoose mongoose
 npm install @nestjs/jwt @nestjs/passport passport passport-jwt passport-local
 npm install @nestjs/websockets @nestjs/platform-socket.io socket.io
 npm install @nestjs/redis redis
@@ -287,7 +287,28 @@ consentmd-backend/
 
 ## 2. Database Schema
 
-### 2.1 Users Table
+### 2.0 MongoDB Collections Overview
+
+**Note:** ConsentMD uses MongoDB for optimal performance with chat, messaging, and real-time data.
+
+**Primary Collections:**
+1. **users** - User profiles synced from Laravel
+2. **messages** - Chat messages with flexible metadata
+3. **conversations** - Chat conversations and groups
+4. **participants** - Conversation participants tracking
+5. **clinical_notes** - Clinical scribe notes
+6. **notifications** - User notifications
+7. **fcm_tokens** - Firebase Cloud Messaging tokens
+8. **notification_preferences** - User notification settings
+
+**MongoDB Advantages for ConsentMD:**
+- ✅ Flexible schema for diverse message types
+- ✅ High write throughput for real-time chat
+- ✅ Horizontal scaling with sharding
+- ✅ TTL indexes for auto-cleanup
+- ✅ Native support for arrays and nested objects
+
+### 2.1 Users Collection
 ```sql
 CREATE TABLE users (
   id UUID PRIMARY KEY,
@@ -2999,67 +3020,198 @@ describe('PatientsService', () => {
 
 ---
 
-## 18. Neon Database Setup
+## 18. MongoDB Setup & Configuration
 
-### 18.1 Neon PostgreSQL Serverless Configuration
+### 18.1 MongoDB Overview
 
-Neon provides serverless PostgreSQL with automatic scaling and connection pooling.
+MongoDB is a NoSQL document database optimized for:
+- **Chat Messages** - Flexible schema for different message types
+- **Conversations** - Fast queries for real-time chat
+- **Real-time Data** - High write throughput for live updates
+- **Scalability** - Horizontal scaling with sharding
+- **Flexibility** - Dynamic document structure for evolving data
 
-**Setup Steps:**
+### 18.2 MongoDB Setup Options
 
-1. **Create Neon Account & Project**
-   - Visit https://console.neon.tech
-   - Sign up and create a new project
-   - Select region (closest to your deployment)
-   - Create database and copy connection string
+#### Option 1: MongoDB Atlas (Recommended for Production)
 
-2. **Connection String Format**
+1. **Create MongoDB Atlas Account**
+   - Visit https://www.mongodb.com/cloud/atlas
+   - Sign up and create a cluster
+   - Choose cloud provider and region (same as Google Cloud Run)
+   - Select M2 or higher tier for production
+
+2. **Connection String**
    ```
-   postgresql://user:password@ep-xxxx-us-east-2.neon.tech/neon?sslmode=require
-   ```
-
-3. **TypeORM Configuration (typeorm.config.ts)**
-   ```typescript
-   import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-   import * as entities from './entities';
-
-   export const typeOrmConfig: TypeOrmModuleOptions = {
-     type: 'postgres',
-     url: process.env.DATABASE_URL, // Neon connection string
-     entities: Object.values(entities),
-     synchronize: process.env.NODE_ENV === 'development',
-     logging: process.env.NODE_ENV === 'development',
-     ssl: {
-       rejectUnauthorized: false, // Neon requires SSL
-     },
-     poolSize: 10,
-     maxQueryExecutionTime: 5000, // ms
-   };
+   mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/consentmd?retryWrites=true&w=majority
    ```
 
-4. **Connection Pooling with PgBouncer**
-   - Neon includes connection pooling
-   - Use `?sslmode=require` in connection string
-   - Connection limits: Check Neon dashboard for pool size
-
-5. **Environment Variables**
+3. **Environment Variables**
    ```env
-   DATABASE_URL=postgresql://user:password@ep-xxxx.neon.tech/neon?sslmode=require
-   DATABASE_POOL_SIZE=10
-   DATABASE_MAX_QUERY_TIME=5000
+   MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/consentmd
+   MONGODB_RETRIES=3
+   MONGODB_TIMEOUT=30000
    ```
 
-6. **Migrations with Neon**
-   ```bash
-   # Create migration
-   npm run typeorm migration:create src/migrations/initial-schema
+#### Option 2: Self-Hosted MongoDB
 
-   # Run migrations
-   npm run typeorm migration:run -- -d src/config/typeorm.config.ts
+```bash
+# Docker Compose
+docker run -d \
+  -p 27017:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=admin \
+  -e MONGO_INITDB_ROOT_PASSWORD=password \
+  -v mongodb_data:/data/db \
+  mongo:latest
+```
 
-   # Revert migrations
-   npm run typeorm migration:revert -- -d src/config/typeorm.config.ts
-   ```
+### 18.3 NestJS MongoDB Configuration
+
+**Installation:**
+```bash
+npm install @nestjs/mongoose mongoose
+npm install -D @types/mongoose
+```
+
+**MongooseModule Configuration (app.module.ts):**
+
+```typescript
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+
+@Module({
+  imports: [
+    MongooseModule.forRoot(process.env.MONGODB_URI, {
+      retryAttempts: 3,
+      retryDelay: 5000,
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 45000,
+    }),
+    // Other modules
+  ],
+})
+export class AppModule {}
+```
+
+### 18.4 MongoDB Collections & Indexes
+
+**Create Collections & Indexes:**
+
+```javascript
+// messages.collection.js
+db.createCollection('messages', {
+  validator: {
+    $jsonSchema: {
+      bsonType: 'object',
+      required: ['conversationId', 'senderId', 'content', 'timestamp'],
+      properties: {
+        _id: { bsonType: 'objectId' },
+        conversationId: { bsonType: 'objectId' },
+        senderId: { bsonType: 'string' },
+        content: { bsonType: 'string' },
+        type: { bsonType: 'string' },
+        metadata: { bsonType: 'object' },
+        isRead: { bsonType: 'bool' },
+        timestamp: { bsonType: 'date' }
+      }
+    }
+  }
+});
+
+// Create indexes for performance
+db.messages.createIndex({ conversationId: 1, timestamp: -1 });
+db.messages.createIndex({ senderId: 1, timestamp: -1 });
+db.messages.createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 }); // 90 days TTL
+
+// conversations.collection.js
+db.createCollection('conversations', {
+  validator: {
+    $jsonSchema: {
+      bsonType: 'object',
+      required: ['name', 'type', 'participants'],
+      properties: {
+        _id: { bsonType: 'objectId' },
+        name: { bsonType: 'string' },
+        type: { bsonType: 'string' },
+        participants: { bsonType: 'array' },
+        lastMessage: { bsonType: 'string' },
+        lastMessageTime: { bsonType: 'date' },
+        createdAt: { bsonType: 'date' },
+        updatedAt: { bsonType: 'date' }
+      }
+    }
+  }
+});
+
+db.conversations.createIndex({ participants: 1 });
+db.conversations.createIndex({ lastMessageTime: -1 });
+```
+
+### 18.5 Mongoose Schema Examples
+
+**See Section 4: TypeORM Entities (now Mongoose Schemas) for complete schema definitions**
+
+### 18.6 Connection Pooling
+
+MongoDB automatically manages connection pooling:
+
+```typescript
+// Connection pool settings in MongooseModule
+MongooseModule.forRoot(process.env.MONGODB_URI, {
+  maxPoolSize: 50,      // Maximum connections
+  minPoolSize: 10,      // Minimum connections
+  maxIdleTimeMS: 45000, // Kill idle connections
+  waitQueueTimeoutMS: 10000,
+})
+```
+
+### 18.7 Data Backups
+
+**MongoDB Atlas Automated Backups:**
+- Daily snapshots (included)
+- Point-in-time restore (14 days default)
+- Manual snapshots available
+
+**Export Backups to GCS:**
+```bash
+# Export collection to GCS
+mongodump --uri="mongodb+srv://user:pass@cluster.mongodb.net/consentmd" \
+  --gzip \
+  --archive=backup.gz
+
+# Upload to GCS
+gsutil cp backup.gz gs://consentmd-backups/
+```
+
+### 18.8 Monitoring & Performance
+
+**Enable MongoDB Monitoring:**
+- Atlas automatically monitors
+- View in Atlas dashboard
+- Set up alerts for CPU, memory, connections
+
+**Query Optimization:**
+```typescript
+// Add indexes for frequent queries
+db.messages.createIndex({ conversationId: 1, timestamp: -1 });
+db.conversations.createIndex({ participants: 1, lastMessageTime: -1 });
+```
+
+### 18.9 Migration from SQL (if needed)
+
+If migrating from SQL:
+```bash
+# 1. Export from PostgreSQL as JSON
+psql -h host -U user -d dbname \
+  -c "COPY (SELECT row_to_json(t) FROM table_name t) TO STDOUT" > data.json
+
+# 2. Transform JSON structure to match MongoDB schema
+# 3. Import to MongoDB
+mongoimport --uri="mongodb+srv://user:pass@cluster" \
+  --collection=collection_name \
+  --file=data.json \
+  --jsonArray
+```
 
 ---
 

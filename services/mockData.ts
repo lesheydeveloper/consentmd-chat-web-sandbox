@@ -46,7 +46,8 @@ export const MOCK_CHATS: Chat[] = [
     avatar: 'https://picsum.photos/seed/careteam/200/200',
     lastMessage: '🎤 Voice Message (0:24)',
     lastMessageTime: new Date(Date.now() - 2000000),
-    pinned: true
+    pinned: true,
+    adminId: 'u1'
   },
   {
     id: 'c2', name: 'Johnson Family Updates', type: GroupType.FAMILY_UPDATE, participants: [USERS[0], USERS[2]],
@@ -54,7 +55,7 @@ export const MOCK_CHATS: Chat[] = [
       { id: 'm3', senderId: 'u2', content: 'Your mother had a good night sleep.', timestamp: new Date(Date.now() - 86400000), type: 'text', isRead: true },
       { id: 'm_img2', senderId: 'u3', content: 'She looks happy today!', timestamp: new Date(Date.now() - 85000000), type: 'image', isRead: true, metadata: { fileUrl: 'https://picsum.photos/seed/happy/800/800' } }
     ],
-    avatar: 'https://picsum.photos/seed/family/200/200', lastMessage: '📷 Image', lastMessageTime: new Date(Date.now() - 85000000)
+    avatar: 'https://picsum.photos/seed/family/200/200', lastMessage: '📷 Image', lastMessageTime: new Date(Date.now() - 85000000), adminId: 'u1'
   },
   {
     id: 'c3', name: 'Staff Broadcast', type: GroupType.BROADCAST, participants: [USERS[0], USERS[3]],
@@ -62,7 +63,7 @@ export const MOCK_CHATS: Chat[] = [
       { id: 'm4', senderId: 'u4', content: '📢 New policy regarding PPE is now in effect. Please review the attached PDF.', timestamp: new Date(Date.now() - 120000), type: 'text', isRead: false },
       { id: 'm_pdf1', senderId: 'u4', content: 'PPE_Guidelines_V2.pdf', timestamp: new Date(Date.now() - 110000), type: 'file', isRead: false, metadata: { fileName: 'PPE_Guidelines_V2.pdf', fileSize: '2.4 MB', mimeType: 'application/pdf', fileUrl: '#' } }
     ],
-    avatar: 'https://picsum.photos/seed/broadcast/200/200', lastMessage: '📄 PPE_Guidelines_V2.pdf', lastMessageTime: new Date(Date.now() - 110000)
+    avatar: 'https://picsum.photos/seed/broadcast/200/200', lastMessage: '📄 PPE_Guidelines_V2.pdf', lastMessageTime: new Date(Date.now() - 110000), adminId: 'u4'
   },
   {
     id: 'c4', name: 'Dr. Emily Chen', type: GroupType.DIRECT, participants: [USERS[0], USERS[1]],
