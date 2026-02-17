@@ -230,6 +230,7 @@ graph TB
         M7["timestamp: Date"]
         M8["isRead: Boolean"]
         M9["readBy: Array"]
+        M10["deletedAt: Date (optional)"]
     end
 
     subgraph Conversations["Conversations Collection"]
@@ -242,6 +243,8 @@ graph TB
         C7["lastMessageTime: Date"]
         C8["createdAt: Date"]
         C9["updatedAt: Date"]
+        C10["adminId: String (optional)"]
+        C11["patientNotesVisible: Boolean (optional)"]
     end
 
     subgraph ClinicalNotes["Clinical Notes Collection"]
@@ -355,7 +358,88 @@ graph TD
 
 ---
 
-## 7. Notification Flow & Multi-Channel Distribution
+## 7. Clinical Note Access Control Flow
+
+```mermaid
+graph TB
+    subgraph Roles["User Roles"]
+        Doctor["👨‍⚕️ Doctor/<br/>Nurse"]
+        Patient["🧑‍🦰 Patient"]
+        Family["👨‍👩‍👧 Family/<br/>Admin"]
+    end
+
+    subgraph Access["Access Levels"]
+        Full["Full Access<br/>(Create/Edit/Generate)"]
+        ReadOnly["Read-Only<br/>(View Only)"]
+        None["No Access<br/>(Hidden)"]
+    end
+
+    subgraph Toggle["Doctor Controls"]
+        ToggleButton["FileText Toggle<br/>in ChatWindow Header"]
+        PatientNotesVisibleFlag["patientNotesVisible<br/>flag on Chat"]
+        PerChatControl["Per-Chat Control"]
+    end
+
+    subgraph Rendering["NotesPanel Rendering"]
+        Guard["Role-Based Guard<br/>canAccessNotes()"]
+        FullUI["Full Editor UI<br/>+ Buttons"]
+        ReadOnlyUI["Read-Only View<br/>+ Banner"]
+        Hidden["Panel Hidden"]
+    end
+
+    subgraph UIComponents["UI Modifications"]
+        Textarea["Main Textarea"]
+        GenerateBtn["Generate Button"]
+        EditBtn["Edit Suggestion"]
+        AcceptBtn["Accept Button"]
+        QuickScribe["Quick Scribe Btn"]
+    end
+
+    Doctor --> Full
+    Patient -->|With Permission| ReadOnly
+    Patient -->|Default| None
+    Family --> None
+
+    Doctor --> ToggleButton
+    ToggleButton --> PatientNotesVisibleFlag
+    PatientNotesVisibleFlag --> PerChatControl
+
+    Full --> FullUI
+    ReadOnly --> ReadOnlyUI
+    None --> Hidden
+
+    FullUI --> Textarea
+    FullUI --> GenerateBtn
+    FullUI --> EditBtn
+    FullUI --> AcceptBtn
+
+    ReadOnlyUI --> Textarea
+    Textarea -->|Read-Only Display| Hidden
+
+    Doctor --> QuickScribe
+    Patient -->|Hidden| QuickScribe
+
+    FullUI -->|Enabled| GenerateBtn
+    ReadOnlyUI -->|Disabled| GenerateBtn
+    ReadOnlyUI -->|Disabled| EditBtn
+    ReadOnlyUI -->|Disabled| AcceptBtn
+
+    style Doctor fill:#c8e6c9
+    style Patient fill:#bbdefb
+    style Family fill:#ffe0b2
+    style Full fill:#a5d6a7
+    style ReadOnly fill:#90caf9
+    style None fill:#ffb74d
+    style ToggleButton fill:#81c784
+    style PatientNotesVisibleFlag fill:#64b5f6
+    style FullUI fill:#66bb6a
+    style ReadOnlyUI fill:#42a5f5
+    style Hidden fill:#ef9a9a
+```
+
+---
+
+## 8. Notification Flow & Multi-Channel Distribution
 
 ```mermaid
 graph TB
@@ -410,7 +494,7 @@ graph TB
 
 ---
 
-## 8. Use Case Diagram - Clinical Scribe System
+## 9. Use Case Diagram - Clinical Scribe System
 
 ```mermaid
 graph TB
@@ -469,7 +553,7 @@ graph TB
 
 ---
 
-## 9. Message Processing Pipeline
+## 10. Message Processing Pipeline
 
 ```mermaid
 graph LR
@@ -516,7 +600,7 @@ graph LR
 
 ---
 
-## 10. Data Flow: Chat Message from Creation to Delivery
+## 11. Data Flow: Chat Message from Creation to Delivery
 
 ```mermaid
 sequenceDiagram
@@ -560,7 +644,7 @@ sequenceDiagram
 
 ---
 
-## 11. Google Cloud Infrastructure
+## 12. Google Cloud Infrastructure
 
 ```mermaid
 graph TB
@@ -634,7 +718,7 @@ graph TB
 
 ---
 
-## 12. Server-Side Event (SSE) vs WebSocket Decision
+## 13. Server-Side Event (SSE) vs WebSocket Decision
 
 ```mermaid
 graph TB
@@ -671,7 +755,7 @@ graph TB
 
 ---
 
-## 13. Data Consistency & Durability
+## 14. Data Consistency & Durability
 
 ```mermaid
 graph TB
@@ -707,7 +791,7 @@ graph TB
 
 ---
 
-## 14. Security & Authentication Layers
+## 15. Security & Authentication Layers
 
 ```mermaid
 graph TB

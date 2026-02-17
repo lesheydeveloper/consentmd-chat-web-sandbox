@@ -9,7 +9,8 @@ import {
   Bell, Ban, ThumbsDown, Lock, Wifi, Pin, PinOff, MonitorUp, Captions, Type, Delete, Grid, ArrowDownLeft, ArrowUpRight,
   ClipboardList, Sparkles, RefreshCw, Save, Trash2, Edit3, CheckCircle2, CirclePause, CirclePlay, Loader2,
   Heart, User as UserIcon, Clock, Info, ExternalLink, Maximize2, Map as MapIcon, ArrowLeft, MicOff, VideoOff,
-  Camera, Eye, UserPlus, FileCheck, AlertCircle
+  Camera, Eye, UserPlus, FileCheck, AlertCircle,
+  Copy, ChevronDown, ChevronUp, WifiOff, Shield, BellOff
 } from 'lucide-react';
 
 // Types & Data
@@ -99,6 +100,29 @@ interface AppContextType {
   addGroupMembers: (chatId: string, userIds: string[]) => void;
   removeGroupMember: (chatId: string, userId: string) => void;
   isGroupAdmin: (chat: Chat) => boolean;
+
+  // Clinical Note Access Control
+  canAccessNotes: (chat: Chat | null) => 'full' | 'readonly' | 'none';
+  togglePatientNotesVisibility: (chatId: string) => void;
+
+  // Typing Indicators & Presence
+  typingUsers: Record<string, string[]>;
+  simulateTyping: (chatId: string, userName: string, durationMs?: number) => void;
+  onlineUsers: Set<string>;
+
+  // Message Deletion
+  deleteMessage: (chatId: string, messageId: string) => void;
+
+  // Leave Group & Mute
+  leaveGroup: (chatId: string) => void;
+  mutedChats: Set<string>;
+  toggleMuteChat: (chatId: string) => void;
+
+  // Offline
+  isOffline: boolean;
+
+  // Profile Editing
+  updateCurrentUser: (updates: Partial<User>) => void;
 
   // Patient & Consultation Management
   promptForPatient: (chatId?: string) => void;
@@ -645,11 +669,14 @@ const ContactPicker: React.FC = () => {
                   onClick={() => handleSelectContact(contact)}
                   className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors group text-left"
                 >
-                  <img
-                    src={contact.avatar}
-                    alt={contact.name}
-                    className="w-12 h-12 rounded-full object-cover shadow-sm group-hover:shadow-md transition-shadow shrink-0"
-                  />
+                  <div className="relative shrink-0">
+                    <img
+                      src={contact.avatar}
+                      alt={contact.name}
+                      className="w-12 h-12 rounded-full object-cover shadow-sm group-hover:shadow-md transition-shadow"
+                    />
+                    <PresenceDot userId={contact.id} />
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-bold text-gray-900">{contact.name}</h3>
@@ -1627,8 +1654,11 @@ const ConsultationTypePicker: React.FC<{
 };
 
 const ChatInfoPanel: React.FC = () => {
-    const { activeChat, currentUser, isChatInfoOpen, toggleChatInfo, setPreviewMedia, isGroupAdmin, removeGroupMember, openAddMembers } = useAppContext();
+    const { activeChat, currentUser, isChatInfoOpen, toggleChatInfo, setPreviewMedia, isGroupAdmin, removeGroupMember, openAddMembers, leaveGroup, mutedChats, toggleMuteChat } = useAppContext();
     const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+    const [isGalleryExpanded, setIsGalleryExpanded] = useState(false);
+    const [isKeyVerifyOpen, setIsKeyVerifyOpen] = useState(false);
+    const navigate = useNavigate();
 
     if (!activeChat || !isChatInfoOpen) return null;
 
@@ -1640,9 +1670,11 @@ const ChatInfoPanel: React.FC = () => {
     const displayName = isDirect && directContact ? directContact.name : activeChat.name;
     const canManageGroup = !isDirect && isGroupAdmin(activeChat);
 
-    // Reset confirmation state when chat changes
+    // Reset state when chat changes
     useEffect(() => {
         setConfirmRemoveId(null);
+        setIsGalleryExpanded(false);
+        setIsKeyVerifyOpen(false);
     }, [activeChat?.id]);
 
     const handleRemoveClick = (userId: string) => {
@@ -1683,41 +1715,60 @@ const ChatInfoPanel: React.FC = () => {
                 </div>
 
                 {/* Media Block */}
-                <div className="bg-white px-4 py-5 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors">
+                <div className="bg-white px-4 py-5 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                         <h4 className="text-sm font-medium text-gray-500">Media, Links and Docs</h4>
-                        <div className="flex items-center text-gray-400 text-sm gap-1">
-                            {mediaMessages.length} <ChevronRight size={18} />
+                        <button onClick={() => setIsGalleryExpanded(v => !v)}
+                            className="flex items-center text-teal text-sm gap-1 hover:underline">
+                            {mediaMessages.length} {isGalleryExpanded ? <ChevronUp size={18}/> : <ChevronRight size={18}/>}
+                        </button>
+                    </div>
+
+                    {isGalleryExpanded ? (
+                        <div className="grid grid-cols-3 gap-1">
+                            {mediaMessages.map(m => (
+                                <div key={m.id} onClick={() => setPreviewMedia(m)}
+                                    className="aspect-square bg-gray-100 rounded-md overflow-hidden cursor-pointer group relative">
+                                    {m.type === 'image' ? (
+                                        <img src={m.metadata?.fileUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="Media"/>
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center bg-teal/10 text-teal gap-1 p-2">
+                                            <File size={24}/>
+                                            <span className="text-[9px] text-center truncate w-full text-teal/80">{m.metadata?.fileName}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {mediaMessages.length === 0 && <p className="col-span-3 text-xs text-gray-400 italic">No media shared yet.</p>}
                         </div>
-                    </div>
-                    <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
-                        {mediaMessages.slice(0, 3).map(m => (
-                            <div key={m.id} onClick={() => setPreviewMedia(m)} className="shrink-0 relative w-[86px] h-[86px] bg-gray-100 rounded-lg overflow-hidden group">
-                                {m.type === 'image' ? (
-                                    <img src={m.metadata?.fileUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="Media" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-teal/10 text-teal"><File size={32} /></div>
-                                )}
-                            </div>
-                        ))}
-                        {mediaMessages.length === 0 && (
-                            <p className="text-xs text-gray-400 italic">No media shared yet.</p>
-                        )}
-                    </div>
+                    ) : (
+                        <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+                            {mediaMessages.slice(0, 3).map(m => (
+                                <div key={m.id} onClick={() => setPreviewMedia(m)} className="shrink-0 w-[86px] h-[86px] bg-gray-100 rounded-lg overflow-hidden group cursor-pointer">
+                                    {m.type === 'image' ? (
+                                        <img src={m.metadata?.fileUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform" alt="Media"/>
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-teal/10 text-teal"><File size={32}/></div>
+                                    )}
+                                </div>
+                            ))}
+                            {mediaMessages.length === 0 && <p className="text-xs text-gray-400 italic">No media shared yet.</p>}
+                        </div>
+                    )}
                 </div>
 
                 {/* Settings Block */}
                 <div className="bg-white shadow-sm flex flex-col">
-                    <div className="flex justify-between items-center p-5 border-b border-gray-100 cursor-pointer hover:bg-gray-50">
+                    <div className="flex justify-between items-center p-5 border-b border-gray-100 cursor-pointer hover:bg-gray-50" onClick={() => toggleMuteChat(activeChat.id)}>
                         <div className="flex items-center gap-4 text-gray-800">
                             <Bell size={24} className="text-gray-500 shrink-0" />
                             <span className="text-[17px]">Mute notifications</span>
                         </div>
-                        <div className="w-10 h-[22px] bg-gray-200 rounded-full relative cursor-pointer">
-                            <div className="w-4 h-4 bg-white rounded-full absolute left-1 top-1 shadow-sm transition-all"></div>
+                        <div className={`w-10 h-[22px] rounded-full relative cursor-pointer transition-colors ${mutedChats.has(activeChat.id) ? 'bg-teal' : 'bg-gray-200'}`}>
+                            <div className={`w-4 h-4 bg-white rounded-full absolute top-1 shadow-sm transition-all ${mutedChats.has(activeChat.id) ? 'left-5' : 'left-1'}`}></div>
                         </div>
                     </div>
-                    <div className="flex items-start gap-4 p-5 cursor-pointer hover:bg-gray-50">
+                    <div className="flex items-start gap-4 p-5 cursor-pointer hover:bg-gray-50" onClick={() => setIsKeyVerifyOpen(true)}>
                         <Lock size={22} className="text-gray-500 shrink-0 mt-0.5" />
                         <div className="flex flex-col">
                             <span className="text-[17px] text-gray-800 mb-0.5">Encryption</span>
@@ -1743,7 +1794,10 @@ const ChatInfoPanel: React.FC = () => {
                         <div className="space-y-4" onClick={() => setConfirmRemoveId(null)}>
                             {activeChat.participants.map(p => (
                                 <div key={p.id} className="group flex items-center gap-4 cursor-pointer hover:bg-gray-50 p-2 -mx-2 rounded-lg transition-colors">
-                                    <img src={p.avatar} className="w-[46px] h-[46px] rounded-full object-cover" />
+                                    <div className="relative shrink-0">
+                                        <img src={p.avatar} className="w-[46px] h-[46px] rounded-full object-cover" />
+                                        <PresenceDot userId={p.id} size="md" />
+                                    </div>
                                     <div className="flex-1 min-w-0 flex justify-between items-center gap-2">
                                         <div className="flex flex-col">
                                             <span className="text-[17px] text-gray-900 truncate">
@@ -1778,7 +1832,8 @@ const ChatInfoPanel: React.FC = () => {
                 <div className="bg-white shadow-sm p-5 pb-8 mb-4">
                     <h4 className="text-sm font-medium text-red-600 mb-4 uppercase tracking-wide">Danger Zone</h4>
                     <div className="space-y-2 flex flex-col">
-                        <button className="text-left text-red-600 text-[17px] hover:bg-red-50 p-3 rounded-lg transition-colors font-medium">
+                        <button onClick={() => { if (!isDirect) { leaveGroup(activeChat.id); toggleChatInfo(); navigate('/chats'); } }}
+                            className="text-left text-red-600 text-[17px] hover:bg-red-50 p-3 rounded-lg transition-colors font-medium">
                             {isDirect ? 'Block' : 'Exit group'}
                         </button>
                         <button className="text-left text-red-600 text-[17px] hover:bg-red-50 p-3 rounded-lg transition-colors font-medium">
@@ -1787,6 +1842,39 @@ const ChatInfoPanel: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Key Verification Modal */}
+            {isKeyVerifyOpen && directContact && (() => {
+                const hash = (directContact.id + currentUser.id).split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+                const rows = Array.from({length: 12}, (_, i) => ((hash * (i + 7) * 13) % 99999).toString().padStart(5, '0'));
+                return (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4" onClick={() => setIsKeyVerifyOpen(false)}>
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+                            <div className="bg-gradient-to-r from-gray-800 to-gray-900 text-white p-6 text-center">
+                                <Shield size={40} className="mx-auto mb-3"/>
+                                <h2 className="text-xl font-bold">Safety Numbers</h2>
+                                <p className="text-sm text-gray-300 mt-1">Verify with {directContact.name}</p>
+                            </div>
+                            <div className="p-6">
+                                <p className="text-xs text-gray-500 mb-4 text-center">
+                                    If these numbers match on both devices, your conversation is end-to-end encrypted.
+                                </p>
+                                <div className="grid grid-cols-4 gap-2">
+                                    {rows.map((num, i) => (
+                                        <span key={i} className="text-center font-mono text-sm bg-gray-100 rounded p-2">{num}</span>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="border-t p-4 flex justify-end">
+                                <button onClick={() => setIsKeyVerifyOpen(false)}
+                                    className="px-6 py-2.5 bg-teal text-white rounded-xl font-bold hover:bg-teal/90">
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };
@@ -1924,7 +2012,7 @@ const NotesPanel: React.FC = () => {
     const {
         activeChat, clinicalNotes, updateClinicalNote, isNotesPanelOpen, toggleNotesPanel,
         generateFullSOAP, acceptSuggestion, dismissSuggestion, isScribeActive, toggleScribe, userPreferences,
-        promptForPatient, promptForConsultationType, chats
+        promptForPatient, promptForConsultationType, chats, canAccessNotes, currentUser
     } = useAppContext();
 
     const [activeTab, setActiveTab] = useState<string>('subjective');
@@ -1932,7 +2020,10 @@ const NotesPanel: React.FC = () => {
     const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(null);
     const [editedSuggestionText, setEditedSuggestionText] = useState("");
 
-    if (!isNotesPanelOpen) return null;
+    const noteAccess = canAccessNotes(activeChat);
+    const isReadOnly = noteAccess === 'readonly';
+
+    if (!isNotesPanelOpen || noteAccess === 'none') return null;
 
     const chatId = activeChat ? activeChat.id : 'global_scribe';
     const note = clinicalNotes[chatId] || {
@@ -1979,6 +2070,13 @@ const NotesPanel: React.FC = () => {
                 </div>
                 <button onClick={toggleNotesPanel} className="text-gray-400 hover:text-navy hover:bg-gray-100 p-2 rounded-full transition-all"><X size={20} /></button>
             </div>
+
+            {/* Read-only banner for patients */}
+            {isReadOnly && (
+                <div className="bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center gap-2 text-blue-700 text-sm shrink-0">
+                    <Eye size={14} /> Viewing notes shared by your care team (read-only)
+                </div>
+            )}
 
             {/* Patient & Consultation Context */}
             <div className="border-b border-gray-200 bg-gray-50/50 p-4 shrink-0">
@@ -2098,12 +2196,19 @@ const NotesPanel: React.FC = () => {
                             Official {template.sections.find(s => s.id === activeTab)?.fullName || activeTab} Records
                         </label>
                     </div>
-                    <textarea
-                        value={note.sections?.[activeTab] || note[activeTab] || ''}
-                        onChange={(e) => updateClinicalNote(chatId, activeTab, e.target.value)}
-                        placeholder={template.sections.find(s => s.id === activeTab)?.placeholder || `Start typing ${activeTab} content...`}
-                        className="w-full h-40 p-4 border rounded-2xl text-sm focus:ring-1 focus:ring-teal outline-none resize-none bg-white border-gray-200 shadow-sm leading-relaxed"
-                    ></textarea>
+                    {!isReadOnly && (
+                        <textarea
+                            value={note.sections?.[activeTab] || note[activeTab] || ''}
+                            onChange={(e) => updateClinicalNote(chatId, activeTab, e.target.value)}
+                            placeholder={template.sections.find(s => s.id === activeTab)?.placeholder || `Start typing ${activeTab} content...`}
+                            className="w-full h-40 p-4 border rounded-2xl text-sm focus:ring-1 focus:ring-teal outline-none resize-none bg-white border-gray-200 shadow-sm leading-relaxed"
+                        ></textarea>
+                    )}
+                    {isReadOnly && (
+                        <div className="w-full h-40 p-4 border rounded-2xl text-sm outline-none resize-none bg-gray-50 border-gray-200 shadow-sm leading-relaxed text-gray-700 overflow-y-auto">
+                            {note.sections?.[activeTab] || note[activeTab] || '(No content)'}
+                        </div>
+                    )}
                 </div>
 
                 <div className="mt-6 border-t pt-6">
@@ -2119,9 +2224,9 @@ const NotesPanel: React.FC = () => {
                         {note.suggestions.filter(s => s.section === activeTab).map(s => (
                             <div key={s.id} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:border-purple-200 transition-all group relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1.5 h-full bg-purple-500/30"></div>
-                                {editingSuggestionId === s.id ? (
+                                {editingSuggestionId === s.id && !isReadOnly ? (
                                     <div className="space-y-3">
-                                        <textarea 
+                                        <textarea
                                             value={editedSuggestionText}
                                             onChange={(e) => setEditedSuggestionText(e.target.value)}
                                             className="w-full text-sm p-3 border rounded-xl border-purple-200 focus:outline-none min-h-[100px] bg-purple-50/30 font-medium"
@@ -2136,15 +2241,21 @@ const NotesPanel: React.FC = () => {
                                     <>
                                         <div className="flex items-start justify-between gap-3 mb-4">
                                             <p className="text-sm text-gray-700 leading-relaxed font-medium">"{s.text}"</p>
-                                            <button onClick={() => dismissSuggestion(chatId, s.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all shrink-0"><Trash2 size={16}/></button>
+                                            {!isReadOnly && (
+                                                <button onClick={() => dismissSuggestion(chatId, s.id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all shrink-0"><Trash2 size={16}/></button>
+                                            )}
                                         </div>
                                         <div className="flex justify-between items-center pt-3 border-t border-gray-50">
-                                            <button onClick={() => startEditing(s)} className="flex items-center gap-1.5 text-[11px] font-bold text-gray-400 hover:text-teal">
-                                                <Edit3 size={14}/> Edit Draft
-                                            </button>
-                                            <button onClick={() => acceptSuggestion(chatId, s.id)} className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[10px] font-bold hover:bg-purple-600 hover:text-white transition-all">
-                                                <CheckCircle2 size={14}/> Accept
-                                            </button>
+                                            {!isReadOnly && (
+                                                <button onClick={() => startEditing(s)} className="flex items-center gap-1.5 text-[11px] font-bold text-gray-400 hover:text-teal">
+                                                    <Edit3 size={14}/> Edit Draft
+                                                </button>
+                                            )}
+                                            {!isReadOnly && (
+                                                <button onClick={() => acceptSuggestion(chatId, s.id)} className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[10px] font-bold hover:bg-purple-600 hover:text-white transition-all">
+                                                    <CheckCircle2 size={14}/> Accept
+                                                </button>
+                                            )}
                                         </div>
                                     </>
                                 )}
@@ -2155,14 +2266,16 @@ const NotesPanel: React.FC = () => {
             </div>
 
             <div className="p-4 bg-gray-50 border-t border-gray-200 space-y-3 shrink-0 pb-safe">
-                <button 
-                    onClick={handleGenerate}
-                    disabled={isGenerating || !activeChat}
-                    className={`w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all ${(!activeChat || isGenerating) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-teal text-white hover:shadow-teal/20'}`}
-                >
-                    {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                    {!activeChat ? 'Attach Chat to Summarize' : isGenerating ? 'Summarizing...' : 'Summarize Full Chat'}
-                </button>
+                {!isReadOnly && (
+                    <button
+                        onClick={handleGenerate}
+                        disabled={isGenerating || !activeChat}
+                        className={`w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all ${(!activeChat || isGenerating) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-teal text-white hover:shadow-teal/20'}`}
+                    >
+                        {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                        {!activeChat ? 'Attach Chat to Summarize' : isGenerating ? 'Summarizing...' : 'Summarize Full Chat'}
+                    </button>
+                )}
                 <div className="flex gap-2">
                     <button className="flex-1 py-3 bg-navy text-white rounded-xl font-bold text-xs hover:bg-navy/90 flex items-center justify-center gap-2 transition-all shadow-sm">
                         <Save size={16} /> Save Narrative
@@ -2218,9 +2331,19 @@ const EmptyNotesWorkspace: React.FC = () => {
 };
 
 const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boolean; searchTerm?: string; isGroup?: boolean; senderName?: string; senderId?: string }> = ({ msg, isOutgoing, isSMS, searchTerm = '', isGroup = false, senderName = '', senderId = '' }) => {
-    const { setPreviewMedia, currentUser } = useAppContext();
+    const { setPreviewMedia, currentUser, deleteMessage, activeChat } = useAppContext();
     const navigate = useNavigate();
     const timeStr = msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const [showMenu, setShowMenu] = useState(false);
+
+    // Show deleted message placeholder
+    if (msg.deletedAt) {
+      return (
+        <div className={`flex items-center gap-2 text-gray-400 text-sm italic px-4 py-2 ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
+          <Ban size={14} /> This message was deleted
+        </div>
+      );
+    }
 
     // Color palette for group participant names
     const senderColors = [
@@ -2256,9 +2379,10 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                     {senderName}
                 </p>
             )}
-            <div className={`max-w-[85%] md:max-w-[70%] rounded-lg px-2 py-1.5 relative shadow-sm ${
-                msg.metadata?.isCallNote ? 'bg-purple-50 border-l-4 border-l-purple-500' : (isOutgoing ? outgoingColor : incomingColor)
-            }`}>
+            <div className="relative group" onMouseLeave={() => setShowMenu(false)}>
+                <div className={`max-w-[85%] md:max-w-[70%] rounded-lg px-2 py-1.5 relative shadow-sm ${
+                    msg.metadata?.isCallNote ? 'bg-purple-50 border-l-4 border-l-purple-500' : (isOutgoing ? outgoingColor : incomingColor)
+                }`}>
                 {msg.metadata?.isCallNote && msg.metadata?.soapNote ? (
                     <div className="p-4 space-y-3">
                         <div className="flex items-center gap-2 mb-3">
@@ -2381,7 +2505,33 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                     {isOutgoing && <CheckCheck size={14} className={msg.isRead ? 'text-[#53bdeb]' : 'text-gray-500'} />}
                 </span>
             </div>
-            
+
+            {/* Hover action button */}
+            <div className={`absolute ${isOutgoing ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} top-0 flex items-center gap-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity`}>
+                <button onClick={() => setShowMenu(!showMenu)} className="p-1 bg-white rounded-full shadow text-gray-500 hover:text-gray-700">
+                    <ChevronDown size={14} />
+                </button>
+            </div>
+
+            {/* Context menu dropdown */}
+            {showMenu && (
+                <div className={`absolute ${isOutgoing ? 'right-0' : 'left-0'} top-8 bg-white rounded-xl shadow-lg border py-1 z-50 min-w-[140px]`}>
+                    {msg.content && (
+                        <button onClick={() => { navigator.clipboard.writeText(msg.content); setShowMenu(false); }}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2">
+                            <Copy size={14} /> Copy
+                        </button>
+                    )}
+                    {isOutgoing && (
+                        <button onClick={() => { deleteMessage(activeChat!.id, msg.id); setShowMenu(false); }}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2">
+                            <Trash2 size={14} /> Delete for me
+                        </button>
+                    )}
+                </div>
+            )}
+            </div>
+
             {(msg.metadata?.transcription || msg.metadata?.transcriptionSummary) && (
                 <div className={`max-w-[85%] md:max-w-[70%] mt-1 text-xs bg-[#f0f2f5] p-2 rounded-lg text-gray-600 shadow-sm border border-gray-200 ${isOutgoing ? 'rounded-tr-none' : 'rounded-tl-none'}`}>
                     <div className="flex items-center gap-1 mb-1 text-teal font-medium">
@@ -2395,8 +2545,16 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
     );
 };
 
+// Presence Indicator Component
+const PresenceDot: React.FC<{ userId: string; size?: 'sm' | 'md' }> = ({ userId, size = 'sm' }) => {
+  const { onlineUsers } = useAppContext();
+  if (!onlineUsers.has(userId)) return null;
+  const s = size === 'sm' ? 'w-2.5 h-2.5 border border-white' : 'w-3.5 h-3.5 border-2 border-white';
+  return <span className={`${s} bg-green-500 rounded-full absolute bottom-0 right-0 shrink-0`} />;
+};
+
 const ChatWindow: React.FC = () => {
-    const { activeChat, currentUser, sendMessage, isNotesPanelOpen, toggleNotesPanel, isScribeActive, toggleChatInfo, isChatInfoOpen, searchTerm, startCall } = useAppContext();
+    const { activeChat, currentUser, sendMessage, isNotesPanelOpen, toggleNotesPanel, isScribeActive, toggleChatInfo, isChatInfoOpen, searchTerm, startCall, togglePatientNotesVisibility, simulateTyping, typingUsers } = useAppContext();
     const navigate = useNavigate();
     const [inputText, setInputText] = useState('');
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -2409,13 +2567,26 @@ const ChatWindow: React.FC = () => {
     const docInputRef = useRef<HTMLInputElement>(null);
     const mediaInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
-    
+
+    // Message Pagination
+    const [visibleCount, setVisibleCount] = useState(30);
+    useEffect(() => { setVisibleCount(30); }, [activeChat?.id]);
+
     // Auto-scroll
     const messagesEndRef = useRef<HTMLDivElement>(null);
     useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [activeChat?.messages]);
 
     const handleSend = () => {
-        if (activeChat && inputText.trim()) { sendMessage(activeChat.id, inputText); setInputText(''); }
+        if (activeChat && inputText.trim()) {
+            sendMessage(activeChat.id, inputText);
+            setInputText('');
+
+            // Simulate typing response from most recent non-current participant
+            const otherParticipant = activeChat.participants.find(p => p.id !== currentUser.id);
+            if (otherParticipant) {
+                setTimeout(() => simulateTyping(activeChat.id, otherParticipant.name, 2500), 1200);
+            }
+        }
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2545,6 +2716,15 @@ const ChatWindow: React.FC = () => {
                     <button onClick={toggleChatInfo} className="p-2.5 hover:bg-gray-200 rounded-full transition-colors" title={isDirect || isSMS ? "Contact Info" : "Group Info"}>
                         <Info size={20}/>
                     </button>
+                    {(currentUser.role === UserRole.DOCTOR || currentUser.role === UserRole.NURSE) && activeChat && !isDirect && (
+                        <button
+                            onClick={() => togglePatientNotesVisibility(activeChat.id)}
+                            title={activeChat.patientNotesVisible ? "Revoke patient note access" : "Allow patient to view notes"}
+                            className={`p-2.5 rounded-full transition-colors ${activeChat.patientNotesVisible ? 'text-teal bg-teal/10' : 'text-gray-500 hover:bg-gray-200'}`}
+                        >
+                            <FileText size={20} />
+                        </button>
+                    )}
                     {/* Dropdown Menu Toggle */}
                     <div className="relative">
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2.5 hover:bg-gray-200 rounded-full transition-colors">
@@ -2576,7 +2756,15 @@ const ChatWindow: React.FC = () => {
                         <Lock size={12} className="shrink-0" /> Messages and calls are end-to-end encrypted. No one outside of this chat, not even ConsentMD, can read or listen to them. Click to learn more.
                     </div>
                 </div>
-                {activeChat.messages.map((msg) => {
+                {activeChat.messages.length > visibleCount && (
+                    <div className="flex justify-center py-3">
+                        <button onClick={() => setVisibleCount(v => v + 20)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full text-sm font-medium transition-colors">
+                            <ChevronUp size={16}/> Load earlier messages
+                        </button>
+                    </div>
+                )}
+                {activeChat.messages.slice(-visibleCount).map((msg) => {
                     const sender = activeChat.participants.find(p => p.id === msg.senderId);
                     return (
                         <MessageBubble
@@ -2630,6 +2818,18 @@ const ChatWindow: React.FC = () => {
                     )}
                 </div>
 
+                {/* Typing indicator */}
+                {(typingUsers[activeChat?.id || ''] || []).length > 0 && (
+                    <div className="px-4 py-1 flex items-center gap-2 text-xs text-gray-500 bg-white/80">
+                        <div className="flex gap-0.5">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}}/>
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}}/>
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}}/>
+                        </div>
+                        <span>{typingUsers[activeChat!.id][0]} is typing...</span>
+                    </div>
+                )}
+
                 <div className="flex-1 bg-white rounded-lg px-4 py-2.5 flex items-center shadow-sm">
                     <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder={isSMS ? "Type an SMS message" : "Type a message"} className="flex-1 focus:outline-none text-[15px] text-gray-700 bg-transparent placeholder-gray-500" />
                 </div>
@@ -2645,7 +2845,7 @@ const ChatWindow: React.FC = () => {
 
 // --- NEW CHAT LIST COMPONENT ---
 const ChatList: React.FC = () => {
-    const { chats, activeChat, setActiveChat, searchTerm, setSearchTerm, togglePinChat, toggleNotesPanel, toggleContactPicker, toggleCreateGroup, isNotesPanelOpen } = useAppContext();
+    const { chats, activeChat, setActiveChat, searchTerm, setSearchTerm, togglePinChat, toggleNotesPanel, toggleContactPicker, toggleCreateGroup, isNotesPanelOpen, currentUser, mutedChats } = useAppContext();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -2702,20 +2902,22 @@ const ChatList: React.FC = () => {
             </div>
 
             {/* Quick Scribe Button */}
-            <div className="px-3 py-3 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-purple-50/50 shrink-0">
-                <button
-                  onClick={() => {
-                    if (!isNotesPanelOpen) {
-                      toggleNotesPanel();
-                    }
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal to-teal/90 text-white rounded-2xl font-bold hover:shadow-md hover:shadow-teal/20 transition-all shadow-sm active:scale-95"
-                >
-                  <Mic size={18} className="opacity-90" />
-                  <span>Start Quick Scribe</span>
-                  <Plus size={16} className="opacity-70" />
-                </button>
-            </div>
+            {(currentUser.role === UserRole.DOCTOR || currentUser.role === UserRole.NURSE) && (
+                <div className="px-3 py-3 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-purple-50/50 shrink-0">
+                    <button
+                      onClick={() => {
+                        if (!isNotesPanelOpen) {
+                          toggleNotesPanel();
+                        }
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-teal to-teal/90 text-white rounded-2xl font-bold hover:shadow-md hover:shadow-teal/20 transition-all shadow-sm active:scale-95"
+                    >
+                      <Mic size={18} className="opacity-90" />
+                      <span>Start Quick Scribe</span>
+                      <Plus size={16} className="opacity-70" />
+                    </button>
+                </div>
+            )}
 
             <div className="p-2 border-b border-gray-200 shrink-0 bg-white">
                 <div className="bg-[#f0f2f5] rounded-lg flex items-center px-3 py-1.5">
@@ -2741,12 +2943,18 @@ const ChatList: React.FC = () => {
                             onClick={() => navigate(`/chats/${chat.id}`)}
                             className={`flex gap-4 p-4 border-b border-gray-50 cursor-pointer hover:bg-[#f5f6f6] transition-all group ${isSelected ? 'bg-[#f0f2f5] border-l-4 border-l-teal' : 'border-l-4 border-l-transparent'}`}
                         >
-                            <img src={chat.avatar} className="w-[48px] h-[48px] rounded-full object-cover shrink-0" />
+                            <div className="relative shrink-0">
+                                <img src={chat.avatar} className="w-[48px] h-[48px] rounded-full object-cover" />
+                                {chat.type === GroupType.DIRECT && chat.participants[1] && (
+                                    <PresenceDot userId={chat.participants[1].id} />
+                                )}
+                            </div>
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <div className="flex justify-between items-baseline mb-1">
                                     <h3 className="font-bold text-[16px] text-navy truncate pr-2 flex items-center gap-1.5">
                                         {chat.name}
                                         {chat.type === GroupType.SMS && <span className="bg-blue-100 text-blue-700 text[9px] px-1 py-0.5 rounded font-bold uppercase tracking-widest shadow-sm">SMS</span>}
+                                        {mutedChats.has(chat.id) && <BellOff size={12} className="text-gray-400 shrink-0" />}
                                     </h3>
                                     <button
                                         onClick={(e) => { e.stopPropagation(); togglePinChat(chat.id); }}
@@ -3752,7 +3960,11 @@ const PatientView: React.FC = () => {
 const Sidebar: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { currentUser, toggleSettings } = useAppContext();
+    const { currentUser, toggleSettings, updateCurrentUser } = useAppContext();
+    const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+    const [editName, setEditName] = useState(currentUser.name);
+    const [editPhone, setEditPhone] = useState(currentUser.phone || '');
+    const [editAvatar, setEditAvatar] = useState(currentUser.avatar);
 
     const NavButton = ({ icon, path, label }: any) => {
         const isActive = path === '/' 
@@ -3789,15 +4001,54 @@ const Sidebar: React.FC = () => {
                 >
                     <Settings size={24} />
                 </button>
-                <img src={currentUser.avatar} className="w-10 h-10 rounded-full border border-gray-300 object-cover cursor-pointer" />
+                <img src={currentUser.avatar} onClick={() => { setEditName(currentUser.name); setEditPhone(currentUser.phone || ''); setEditAvatar(currentUser.avatar); setIsEditProfileOpen(true); }} className="w-10 h-10 rounded-full border border-gray-300 object-cover cursor-pointer" />
             </div>
+
+            {/* Edit Profile Modal */}
+            {isEditProfileOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[300] flex items-center justify-center p-4" onClick={() => setIsEditProfileOpen(false)}>
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="bg-gradient-to-r from-teal to-teal/80 text-white p-6 text-center">
+                            <img src={editAvatar} className="w-20 h-20 rounded-full mx-auto mb-3 border-4 border-white/30 object-cover" />
+                            <h2 className="text-xl font-bold">Edit Profile</h2>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Display Name</label>
+                                <input value={editName} onChange={e => setEditName(e.target.value)}
+                                    className="w-full mt-1 px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-teal text-sm" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone Number</label>
+                                <input value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                                    className="w-full mt-1 px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-teal text-sm" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Avatar URL</label>
+                                <input value={editAvatar} onChange={e => setEditAvatar(e.target.value)}
+                                    className="w-full mt-1 px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:border-teal text-sm" />
+                            </div>
+                        </div>
+                        <div className="border-t p-4 flex justify-end gap-3">
+                            <button onClick={() => setIsEditProfileOpen(false)}
+                                className="px-5 py-2.5 text-gray-600 rounded-xl font-medium hover:bg-gray-100">
+                                Cancel
+                            </button>
+                            <button onClick={() => { updateCurrentUser({ name: editName, phone: editPhone, avatar: editAvatar }); setIsEditProfileOpen(false); }}
+                                className="px-6 py-2.5 bg-teal text-white rounded-xl font-bold hover:bg-teal/90">
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 // --- APP PROVIDER ---
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser] = useState<User>(CURRENT_USER);
+  const [currentUser, setCurrentUser] = useState(CURRENT_USER as User);
   const [chats, setChats] = useState<Chat[]>(MOCK_CHATS);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [patients, setPatients] = useState<PatientProfile[]>([
@@ -3855,6 +4106,11 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [callPreview, setCallPreview] = useState<{ user: User; type: 'voice' | 'video' } | null>(null);
   const [activeCallSession, setActiveCallSession] = useState<CallSession | null>(null);
   const [callTranscription, setCallTranscription] = useState('');
+
+  // Typing Indicators & Presence State
+  const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
+  const MOCK_ONLINE_USERS = new Set(['u2', 'u7', 'u8']); // Dr. Chen, David Kim, Rachel Green
+  const [onlineUsers] = useState<Set<string>>(MOCK_ONLINE_USERS);
 
   // User preferences & settings
   const [userPreferences, setUserPreferences] = useState<UserPreferences>(() => {
@@ -4155,6 +4411,89 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setActiveChat(prev => prev?.id === chatId ? updater(prev) : prev);
   };
 
+  // Clinical Note Access Control
+  const canAccessNotes = (chat: Chat | null): 'full' | 'readonly' | 'none' => {
+    if (!chat) return 'none';
+    if (currentUser.role === UserRole.DOCTOR || currentUser.role === UserRole.NURSE) return 'full';
+    if (currentUser.role === UserRole.PATIENT && chat.patientNotesVisible) return 'readonly';
+    return 'none';
+  };
+
+  const togglePatientNotesVisibility = (chatId: string) => {
+    const updater = (chat: Chat) => ({ ...chat, patientNotesVisible: !chat.patientNotesVisible });
+    setChats(prev => prev.map(c => c.id === chatId ? updater(c) : c));
+    setActiveChat(prev => prev?.id === chatId ? updater(prev) : prev);
+  };
+
+  // Typing Indicators & Presence
+  const simulateTyping = (chatId: string, userName: string, durationMs = 2000) => {
+    setTypingUsers(prev => ({
+      ...prev,
+      [chatId]: [...(prev[chatId] || []).filter(n => n !== userName), userName]
+    }));
+    setTimeout(() => {
+      setTypingUsers(prev => ({
+        ...prev,
+        [chatId]: (prev[chatId] || []).filter(n => n !== userName)
+      }));
+    }, durationMs);
+  };
+
+  // Message Deletion (Soft Delete)
+  const deleteMessage = (chatId: string, messageId: string) => {
+    const marker = (msg: Message) =>
+      msg.id === messageId ? { ...msg, content: '', deletedAt: new Date() } : msg;
+    setChats(prev => prev.map(c => c.id === chatId
+      ? { ...c, messages: c.messages.map(marker) }
+      : c
+    ));
+    setActiveChat(prev => prev?.id === chatId
+      ? { ...prev, messages: prev.messages.map(marker) }
+      : prev
+    );
+  };
+
+  // Leave Group
+  const leaveGroup = (chatId: string) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (!chat) return;
+    const systemMsg: Message = {
+      id: `sys_${Date.now()}`, senderId: 'system',
+      content: `${currentUser.name} left the group`,
+      timestamp: new Date(), type: 'text', isRead: true
+    };
+    setChats(prev => prev.map(c => c.id === chatId
+      ? { ...c, participants: c.participants.filter(p => p.id !== currentUser.id), messages: [...c.messages, systemMsg] }
+      : c
+    ));
+    setActiveChat(null);
+  };
+
+  // Mute Chat
+  const [mutedChats, setMutedChats] = useState(new Set([] as string[]));
+  const toggleMuteChat = (chatId: string) => {
+    setMutedChats(prev => {
+      const next = new Set(prev);
+      if (next.has(chatId)) { next.delete(chatId); } else { next.add(chatId); }
+      return next;
+    });
+  };
+
+  // Offline Detection
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const goOnline = () => setIsOffline(false);
+    const goOffline = () => setIsOffline(true);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+  }, []);
+
+  // Profile Editing
+  const updateCurrentUser = (updates: any) => {
+    setCurrentUser((prev: any) => ({ ...prev, ...updates }));
+  };
+
   const generateFullSOAP = async (chatId: string) => {
     const chat = chats.find(c => c.id === chatId);
     if (!chat) return;
@@ -4378,6 +4717,17 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     addGroupMembers,
     removeGroupMember,
     isGroupAdmin,
+    canAccessNotes,
+    togglePatientNotesVisibility,
+    typingUsers,
+    simulateTyping,
+    onlineUsers,
+    deleteMessage,
+    leaveGroup,
+    mutedChats,
+    toggleMuteChat,
+    isOffline,
+    updateCurrentUser,
     promptForPatient,
     promptForConsultationType,
     isPatientSelectorOpen,
@@ -4404,7 +4754,8 @@ const Layout: React.FC = () => {
       isPatientCreationOpen, setIsPatientCreationOpen,
       isConsultationPickerOpen, setIsConsultationPickerOpen,
       handlePatientSelected, handleCreateNewPatient, handleConsultationTypeSelected,
-      isAddMembersOpen, addMembersChatId, closeAddMembers
+      isAddMembersOpen, addMembersChatId, closeAddMembers,
+      isOffline
     } = useAppContext() as any;
 
     // Determine what to show on mobile
@@ -4417,6 +4768,11 @@ const Layout: React.FC = () => {
     return (
         // Changed to flex-col-reverse for a true bottom-nav layout on mobile without fixed positioning
         <div className="h-screen w-full flex flex-col-reverse md:flex-row bg-[#d1d7db] overflow-hidden relative">
+            {isOffline && (
+                <div className="fixed top-0 left-0 right-0 z-[999] bg-yellow-500 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2">
+                    <WifiOff size={16}/> You're offline. Messages will send when you reconnect.
+                </div>
+            )}
             <Sidebar />
             
             {/* Wrap the main content to take flex-1 and manage its own overflow */}

@@ -32,6 +32,7 @@ export interface Message {
   timestamp: Date;
   type: 'text' | 'image' | 'voice' | 'file' | 'system' | 'call_log';
   isRead: boolean;
+  deletedAt?: Date;
   metadata?: {
     fileUrl?: string;
     fileName?: string;
@@ -62,6 +63,7 @@ export interface Chat {
   phoneNumber?: string;
   patientId?: string;
   adminId?: string;
+  patientNotesVisible?: boolean;
 }
 
 export interface CallLog {
