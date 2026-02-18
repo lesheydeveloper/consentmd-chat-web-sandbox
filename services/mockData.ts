@@ -120,7 +120,7 @@ export const MOCK_CALLS: CallLog[] = [
 ];
 
 export const MOCK_PATIENT: PatientProfile = {
-  id: 'p1', userId: 'u5', dob: '1954-03-12', address: '123 Maple Street, Springfield',
+  id: 'p1', userId: 'u5', mrn: 'MRN-001234', dob: '1954-03-12', address: '123 Maple Street, Springfield',
   diagnosis: ['Hypertension', 'Type 2 Diabetes'],
   medications: [
     { id: 'med1', name: 'Lisinopril', dosage: '10mg', frequency: 'Daily' },
