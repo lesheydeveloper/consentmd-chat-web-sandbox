@@ -48,7 +48,7 @@ const CallPreviewModal: React.FC = () => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[999] flex items-center justify-center animate-[fadeIn_0.3s_ease-out]">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center animate-[fadeIn_0.3s_ease-out]">
             <div className="bg-white rounded-3xl shadow-2xl overflow-hidden w-96 animate-[slideUp_0.3s_ease-out] border border-gray-100">
                 {/* Header Background */}
                 <div className="relative h-32 bg-gradient-to-br from-teal/20 via-blue-50 to-purple-50 flex flex-col items-center justify-center">

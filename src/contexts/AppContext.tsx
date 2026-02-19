@@ -69,6 +69,18 @@ interface AppContextType {
   isContactPickerOpen: boolean;
   toggleContactPicker: () => void;
 
+  // Schedule Call Modal
+  isScheduleCallOpen: boolean;
+  toggleScheduleCall: () => void;
+  scheduleCallContext: { defaultTitle?: string; defaultParticipant?: string } | null;
+  openScheduleCall: (context?: { defaultTitle?: string; defaultParticipant?: string }) => void;
+
+  // Event Detail Modal
+  isEventDetailOpen: boolean;
+  eventDetailContext: any | null;
+  openEventDetail: (event: any) => void;
+  closeEventDetail: () => void;
+
   // Group Chat Management
   isCreateGroupOpen: boolean;
   toggleCreateGroup: () => void;
@@ -226,6 +238,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Contact Picker State
   const [isContactPickerOpen, setIsContactPickerOpen] = useState(false);
   const toggleContactPicker = () => setIsContactPickerOpen(prev => !prev);
+
+  // Schedule Call Modal State
+  const [isScheduleCallOpen, setIsScheduleCallOpen] = useState(false);
+  const [scheduleCallContext, setScheduleCallContext] = useState<{ defaultTitle?: string; defaultParticipant?: string } | null>(null);
+  const toggleScheduleCall = () => setIsScheduleCallOpen(prev => !prev);
+  const openScheduleCall = (context?: { defaultTitle?: string; defaultParticipant?: string }) => {
+    setScheduleCallContext(context || null);
+    setIsScheduleCallOpen(true);
+  };
+
+  // Event Detail Modal State
+  const [isEventDetailOpen, setIsEventDetailOpen] = useState(false);
+  const [eventDetailContext, setEventDetailContext] = useState<any | null>(null);
+  const openEventDetail = (event: any) => {
+    setEventDetailContext(event);
+    setIsEventDetailOpen(true);
+  };
+  const closeEventDetail = () => {
+    setIsEventDetailOpen(false);
+    setEventDetailContext(null);
+  };
 
   // Group Chat Management State
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
@@ -795,6 +828,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     templatePickerContext,
     isContactPickerOpen,
     toggleContactPicker,
+    isScheduleCallOpen,
+    toggleScheduleCall,
+    scheduleCallContext,
+    openScheduleCall,
+    isEventDetailOpen,
+    eventDetailContext,
+    openEventDetail,
+    closeEventDetail,
     isCreateGroupOpen,
     toggleCreateGroup,
     isAddMembersOpen,

@@ -29,6 +29,14 @@ const ChatInfoPanel: React.FC = () => {
     const [isKeyVerifyOpen, setIsKeyVerifyOpen] = useState(false);
     const router = useRouter();
 
+    // Reset state when chat changes
+    useEffect(() => {
+        setConfirmRemoveId(null);
+        setIsGalleryExpanded(false);
+        setIsKeyVerifyOpen(false);
+    }, [activeChat?.id]);
+
+    // Early return AFTER all hooks
     if (!activeChat || !isChatInfoOpen) return null;
 
     const mediaMessages = activeChat.messages.filter(m => m.type === 'image' || m.type === 'file');
@@ -38,13 +46,6 @@ const ChatInfoPanel: React.FC = () => {
     const displayAvatar = isDirect && directContact ? directContact.avatar : activeChat.avatar;
     const displayName = isDirect && directContact ? directContact.name : activeChat.name;
     const canManageGroup = !isDirect && isGroupAdmin(activeChat);
-
-    // Reset state when chat changes
-    useEffect(() => {
-        setConfirmRemoveId(null);
-        setIsGalleryExpanded(false);
-        setIsKeyVerifyOpen(false);
-    }, [activeChat?.id]);
 
     const handleRemoveClick = (userId: string) => {
         if (confirmRemoveId === userId) {

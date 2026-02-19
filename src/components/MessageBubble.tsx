@@ -61,11 +61,11 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                 </p>
             )}
             <div className="relative group" onMouseLeave={() => setShowMenu(false)}>
-                <div className={`max-w-[85%] md:max-w-[70%] rounded-lg px-2 py-1.5 relative shadow-sm ${
+                <div className={` w-fit   rounded-lg px-2 py-1.5 relative shadow-sm ${
                     msg.metadata?.isCallNote ? 'bg-purple-50 border-l-4 border-l-purple-500' : (isOutgoing ? outgoingColor : incomingColor)
                 }`}>
                 {msg.metadata?.isCallNote && msg.metadata?.soapNote ? (
-                    <div className="p-4 space-y-3">
+                    <div className="p-4 pb-6 space-y-3">
                         <div className="flex items-center gap-2 mb-3">
                             <Sparkles size={16} className="text-purple-600" />
                             <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">Clinical Scribe Summary</span>
@@ -120,7 +120,7 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                         </div>
                     </div>
                 ) : msg.type === 'text' && (
-                    <div className="text-[14.2px] leading-[19px] whitespace-pre-wrap pl-1 pr-14 pt-0.5 pb-1">
+                    <div className="text-[14.2px] leading-[19px] whitespace-pre-wrap break-words pl-1 pr-16 pt-0.5 pb-2">
                         {highlightText(msg.content, searchTerm)}
                     </div>
                 )}
@@ -130,18 +130,20 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                         <img 
                             src={msg.metadata?.fileUrl} 
                             onClick={() => setPreviewMedia(msg)}
-                            className="rounded-md max-h-64 object-cover cursor-pointer" 
+                            className="rounded-md max-h-64 object-cover cursor-pointer max-w-full" 
                         />
-                        <div className="text-[14.2px] leading-[19px] mt-1 pl-1 pr-14">
-                            {msg.content}
-                        </div>
+                        {msg.content && (
+                            <div className="text-[14.2px] leading-[19px] mt-1 pl-1 pr-16 break-words pb-2">
+                                {msg.content}
+                            </div>
+                        )}
                     </div>
                 )}
                 
                 {msg.type === 'file' && (
-                    <div className="flex items-center bg-black/5 rounded p-3 mb-1 mt-1 cursor-pointer" onClick={() => setPreviewMedia(msg)}>
+                    <div className="flex items-center bg-black/5 rounded p-3 pb-4 mb-1 mt-1 cursor-pointer" onClick={() => setPreviewMedia(msg)}>
                         <FileText size={24} className={isOutgoing ? 'text-teal' : 'text-gray-500'} />
-                        <div className="ml-3 flex-1 min-w-0 pr-8">
+                        <div className="ml-3 flex-1 min-w-0 pr-12">
                             <p className="text-sm font-medium truncate">{msg.metadata?.fileName}</p>
                             <p className="text-xs opacity-70">{msg.metadata?.fileSize} • {msg.metadata?.mimeType?.split('/')[1]?.toUpperCase()}</p>
                         </div>
@@ -149,7 +151,7 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                 )}
                 
                 {msg.type === 'voice' && (
-                    <div className="p-2">
+                    <div className="p-2 w-fit">
                         <AudioMessageBubble message={msg} />
                     </div>
                 )}
@@ -157,7 +159,7 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                 {msg.type === 'call_log' && (
                     <div
                         onClick={() => msg.metadata?.callId && router.push(`/calls/${msg.metadata.callId}`)}
-                        className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors w-full max-w-sm"
+                        className="bg-white p-3 pb-5 rounded-lg shadow-sm border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors w-full max-w-sm"
                     >
                         <div className="flex items-center gap-3 mb-2">
                             <div className="bg-gray-100 p-2 rounded-full">
@@ -181,7 +183,7 @@ const MessageBubble: React.FC<{ msg: Message; isOutgoing: boolean; isSMS?: boole
                     </div>
                 )}
 
-                <span className="text-[11px] opacity-70 absolute right-2 bottom-1 flex items-center gap-1">
+                <span className="text-[11px] opacity-70 absolute right-2 bottom-2 flex items-center gap-1 whitespace-nowrap">
                     {timeStr}
                     {isOutgoing && <CheckCheck size={14} className={msg.isRead ? 'text-[#53bdeb]' : 'text-gray-500'} />}
                 </span>

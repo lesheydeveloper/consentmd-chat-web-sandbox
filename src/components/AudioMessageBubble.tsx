@@ -76,19 +76,18 @@ const AudioMessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     };
 
     return (
-        <div className="min-w-[240px]">
+        <div className="w-fit">
             <div className="flex items-center gap-3 mb-2">
-                <div className="relative">
-                    <img src={CURRENT_USER.avatar} className="w-10 h-10 rounded-full absolute -left-14 top-0 border hidden md:block" />
+                <div className="relative shrink-0">
                     <button
                         onClick={() => setIsPlaying(!isPlaying)}
-                        className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full text-gray-600 hover:bg-gray-300 transition-colors"
+                        className="w-10 h-10 flex items-center justify-center bg-gray-200 rounded-full text-gray-600 hover:bg-gray-300 transition-colors shrink-0"
                     >
                         {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
                     </button>
                 </div>
 
-                <div className="flex-1">
+                <div className="flex flex-col">
                     {/* Fake Waveform */}
                     <div className="flex items-center gap-[2px] h-8 mb-1 opacity-60">
                          {[...Array(30)].map((_, i) => (

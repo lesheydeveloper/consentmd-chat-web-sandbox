@@ -2299,7 +2299,7 @@ const EmptyWorkspace: React.FC = () => {
                 <h2 className="text-2xl font-light text-gray-800 mb-3">ConsentMD Workspace</h2>
                 <p className="text-sm text-gray-500 leading-relaxed mb-6">Select a patient or care team to begin secure clinical communication, or start a standalone scribe session.</p>
                 
-                <button onClick={toggleNotesPanel} className="mb-6 flex items-center gap-2 px-6 py-3 bg-teal text-white rounded-xl font-bold hover:bg-navy transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5">
+                <button onClick={toggleNotesPanel} className="mb-6 flex items-center gap-2 px-6 py-3 bg-teal text-white !rounded-full font-bold hover:bg-navy transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5">
                     <Mic size={20} />
                     Start Quick Scribe
                 </button>

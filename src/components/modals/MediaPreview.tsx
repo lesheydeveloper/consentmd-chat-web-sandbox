@@ -38,7 +38,7 @@ const MediaPreview: React.FC = () => {
     const resetZoom = () => setZoomLevel(1);
 
     return (
-        <div className="fixed inset-0 z-[200] bg-black/95 flex flex-col animate-[fadeIn_0.2s_ease-out]">
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col animate-[fadeIn_0.2s_ease-out]">
             <div className="h-16 flex items-center justify-between px-6 text-white bg-black/50">
                 <div className="flex flex-col">
                     <span className="font-bold text-sm">{previewMedia.metadata?.fileName || 'Media Preview'}</span>

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { WifiOff } from 'lucide-react';
 
 import { useAppContext } from '../contexts/AppContext';
+import { USERS } from '../../services/mockData';
 import Sidebar from './panels/Sidebar';
 import ChatList from './windows/ChatList';
 import CallList from './windows/CallList';
@@ -29,6 +30,8 @@ import TemplatePickerModal from './modals/TemplatePickerModal';
 import PatientSelectorModal from './modals/PatientSelectorModal';
 import PatientCreationModal from './modals/PatientCreationModal';
 import ConsultationTypePicker from './modals/ConsultationTypePicker';
+import ScheduleCallModal from './modals/ScheduleCallModal';
+import EventDetailModal from './modals/EventDetailModal';
 
 const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
     const pathname = usePathname();
@@ -39,6 +42,9 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
       isConsultationPickerOpen, setIsConsultationPickerOpen,
       handlePatientSelected, handleCreateNewPatient, handleConsultationTypeSelected,
       isAddMembersOpen, addMembersChatId, closeAddMembers,
+      isScheduleCallOpen, toggleScheduleCall, scheduleCallContext,
+      isEventDetailOpen, eventDetailContext, openEventDetail, closeEventDetail,
+      chats, startCall, openScheduleCall,
       isOffline
     } = useAppContext() as any;
 
@@ -67,7 +73,7 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
     const showSidePanels = showChatWindow;
 
     return (
-        <div className="h-screen w-full flex flex-col-reverse md:flex-row bg-[#d1d7db] overflow-hidden relative">
+        <div className="h-screen w-full flex flex-col-reverse md:flex-row bg-[#d1d7db] overflow-hidden">
             {isOffline && (
                 <div className="fixed top-0 left-0 right-0 z-[999] bg-yellow-500 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2">
                     <WifiOff size={16}/> You're offline. Messages will send when you reconnect.
@@ -76,17 +82,17 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
             <Sidebar />
             
             {/* Wrap the main content to take flex-1 and manage its own overflow */}
-            <div className="flex-1 flex min-h-0 min-w-0 relative w-full">
+            <div className="flex-1 flex min-h-0 min-w-0 relative w-full pb-20 md:pb-0">
                 {showAnyList && (
-                  <div className={`w-[280px] md:w-[420px] shrink-0 h-full relative z-30 ${showListOnMobile ? 'block' : 'hidden md:block'}`}>
+                  <div className={`w-full md:w-[420px] shrink-0 h-full relative z-30 ${showListOnMobile ? 'block' : 'hidden md:block'}`}>
                       {showChatList && <ChatList />}
                       {showCallList && <CallList />}
                       {showNotesList && <NotesList />}
                   </div>
                 )}
                 
-                <div className="flex-1 flex min-w-0 relative h-full bg-[#f0f2f5] z-20">
-                    <div className="flex-1 flex flex-col h-full relative min-w-0">
+                <div className={`flex-1 flex min-w-0 relative h-full bg-[#f0f2f5] z-20 ${showAnyList && showListOnMobile ? 'hidden md:flex' : ''}`}>
+                    <div className="flex-1 flex flex-col h-full relative min-w-0 w-full">
                         {children ? children : (
                             <>
                                 {showEmptyWorkspace && <EmptyWorkspace />}
@@ -171,6 +177,47 @@ const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
               onClose={() => setIsConsultationPickerOpen(false)}
               onSelect={handleConsultationTypeSelected}
             />
+
+                <ScheduleCallModal
+                  isOpen={isScheduleCallOpen}
+                  onClose={toggleScheduleCall}
+                  onSchedule={(scheduleData) => {
+                    // TODO: Save to schedule/calendar
+                    console.log('Scheduled call:', scheduleData);
+                    // You can integrate this with your schedule page data
+                    toggleScheduleCall();
+                  }}
+                  context={scheduleCallContext || undefined}
+                />
+
+                {/* Event Detail Modal */}
+                <EventDetailModal
+                  isOpen={isEventDetailOpen}
+                  onClose={closeEventDetail}
+                  event={eventDetailContext}
+                  onEdit={() => {
+                    closeEventDetail();
+                    if (eventDetailContext) {
+                      const participant = USERS.find((u: any) => u.id === eventDetailContext.patientId);
+                      if (participant) {
+                        openScheduleCall({
+                          defaultParticipant: participant.name,
+                        });
+                      }
+                    }
+                  }}
+                  onJoin={() => {
+                    if (eventDetailContext) {
+                      const participant = chats
+                        .flatMap((c: any) => c.participants)
+                        .find((p: any) => p.id === eventDetailContext.patientId);
+                      if (participant) {
+                        startCall(participant, eventDetailContext.type === 'appointment' ? 'video' : 'voice');
+                      }
+                      closeEventDetail();
+                    }
+                  }}
+                />
         </div>
     );
 };

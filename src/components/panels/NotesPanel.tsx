@@ -36,13 +36,26 @@ const NotesPanel: React.FC = () => {
     const noteAccess = canAccessNotes(activeChat);
     const isReadOnly = noteAccess === 'readonly';
 
-    if (!isNotesPanelOpen || noteAccess === 'none') return null;
-
     const chatId = activeChat ? activeChat.id : 'global_scribe';
     const note = clinicalNotes[chatId] || {
         templateType: 'soap' as NoteTemplateType,
         subjective: '', objective: '', assessment: '', plan: '', sections: {}, suggestions: []
     };
+
+    // Get template and build tabs dynamically
+    const templateType = note.templateType || userPreferences.defaultTemplate;
+    const template = NOTE_TEMPLATES[templateType];
+
+    // Ensure activeTab is valid for current template
+    useEffect(() => {
+        const validTabIds = template.sections.map(s => s.id);
+        if (!validTabIds.includes(activeTab)) {
+            setActiveTab(validTabIds[0] || 'subjective');
+        }
+    }, [template, activeTab]);
+
+    // Early return AFTER all hooks
+    if (!isNotesPanelOpen || noteAccess === 'none') return null;
 
     const handleGenerate = async () => {
         if (!activeChat) return;
@@ -61,18 +74,6 @@ const NotesPanel: React.FC = () => {
         setEditingSuggestionId(null);
         setEditedSuggestionText("");
     };
-
-    // Get template and build tabs dynamically
-    const templateType = note.templateType || userPreferences.defaultTemplate;
-    const template = NOTE_TEMPLATES[templateType];
-
-    // Ensure activeTab is valid for current template
-    useEffect(() => {
-        const validTabIds = template.sections.map(s => s.id);
-        if (!validTabIds.includes(activeTab)) {
-            setActiveTab(validTabIds[0] || 'subjective');
-        }
-    }, [template, activeTab]);
 
     return (
         <div className="fixed inset-0 z-[100] md:relative md:inset-auto md:w-[400px] bg-white border-l border-gray-200 h-full flex flex-col shrink-0 md:z-40 animate-[slideLeft_0.2s_ease-out] shadow-2xl overflow-hidden">

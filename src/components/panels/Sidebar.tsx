@@ -20,6 +20,8 @@ import { User, Chat, Message, GroupType, UserRole, PatientProfile, CallLog, Clin
 import { MOCK_CALLS, USERS } from '../../../services/mockData';
 import { NOTE_TEMPLATES, getAllTemplates } from '../../../templates/noteTemplates';
 import { CONSULTATION_TYPES, getAllConsultationTypes } from '../../../constants/consultationTypes';
+import { MdOutlineMessage } from "react-icons/md";
+import { PiUsersThree } from "react-icons/pi";
 
 const Sidebar: React.FC = () => {
     const router = useRouter();
@@ -38,23 +40,38 @@ const Sidebar: React.FC = () => {
         return (
             <button 
                 onClick={() => router.push(path === '/' ? '/chats' : path)}
-                className={`flex-1 md:flex-none flex flex-col items-center justify-center gap-1 md:gap-1.5 py-2 md:p-3 md:rounded-2xl transition-all relative group ${isActive ? 'text-teal md:bg-teal md:text-white md:shadow-md' : 'text-gray-400 hover:text-gray-600 md:text-gray-500 md:hover:bg-gray-200'}`}
+                className={`flex-1 md:flex-none flex flex-col items-center justify-center gap-1 md:gap-1.5 py-2 md:py-3 transition-all relative group ${
+                    isActive 
+                      ? 'text-teal md:text-teal' 
+                      : 'text-gray-400 hover:text-gray-600 md:text-gray-500'
+                }`}
             >
                 <div className={`transition-transform duration-200 ${isActive ? 'scale-110' : 'scale-100'}`}>
-                    {icon}
+                    <div
+                      className={`flex items-center justify-center w-9 h-9 md:w-11 md:h-11 rounded-full ${
+                        isActive ? 'bg-teal text-white shadow-md' : 'bg-transparent group-hover:bg-gray-200'
+                      }`}
+                    >
+                      {icon}
+                    </div>
                 </div>
-                <span className={`text-[10px] md:text-[11px] font-semibold tracking-wide ${isActive ? 'text-teal md:text-white' : 'text-gray-400 md:text-gray-500'}`}>{label}</span>
+                <span className={`text-[10px] md:text-[11px] font-semibold tracking-wide ${
+                    isActive ? 'text-teal' : 'text-gray-400 md:text-gray-500'
+                }`}>
+                  {label}
+                </span>
             </button>
         );
     };
 
     return (
-        <div className="w-full md:w-[72px] bg-white md:bg-[#f0f2f5] border-t md:border-t-0 md:border-r border-gray-200 flex md:flex-col items-center justify-between shrink-0 z-50 pb-2 md:pb-4 md:pt-4 shadow-[0_-4px_15px_rgba(0,0,0,0.03)] md:shadow-none relative" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}>
-            <div className="flex md:flex-col items-center justify-around w-full md:w-auto px-2 md:px-0 pt-1.5 pb-1 md:py-0 md:gap-4">
-                <NavButton icon={<MessageSquare size={24} />} path="/" label="Chats" />
+        <div className="fixed md:relative bottom-0 left-0 right-0 w-full md:w-[72px] bg-white md:bg-[#f0f2f5] border-t md:border-t-0 md:border-r border-gray-200 flex md:flex-col items-center justify-between shrink-0 z-[100] pb-2 md:pb-4 md:pt-4 shadow-[0_-4px_15px_rgba(0,0,0,0.03)] md:shadow-none" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' }}>
+            <div className="flex md:flex-col items-center justify-around w-full md:w-auto px-2 md:px-0 pt-1.5 pb-1 md:py-0 ">
+                <NavButton icon={<MdOutlineMessage size={24} />} path="/" label="Chats" />
                 <NavButton icon={<Phone size={24} />} path="/calls" label="Calls" />
                 <NavButton icon={<ClipboardList size={24} />} path="/notes" label="Notes" />
-                <NavButton icon={<Users size={24} />} path="/patients" label="Patients" />
+                <NavButton icon={<PiUsersThree size={24} />} path="/patients" label="Patients" />
+                <NavButton icon={<Calendar size={24} />} path="/schedule" label="Schedule" />
             </div>
             
             <div className="hidden md:flex flex-col items-center gap-4">
